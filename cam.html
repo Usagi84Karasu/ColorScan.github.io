@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>ColorScan+</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    body, html {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      background: #000;
+      color: white;
+    }
+
+    .menu {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100vh;
+      background: #6d6c6c;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      text-align: center;
+      padding: 20px;
+    }
+    .menu h1 {
+      font-size: 2.2rem;
+      margin-bottom: 1rem;
+      color: #0ff;
+    }
+    .menu p {
+      font-size: 1rem;
+      margin-bottom: 2rem;
+    }
+    .menu button {
+      background: #0ff;
+      color: #000;
+      border: none;
+      padding: 1rem 2rem;
+      font-size: 1.1rem;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .menu button:hover {
+      background: #0cc;
+    }
+
+    .hidden { display: none; }
+    video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 1;
+    }
+    canvas { display: none; }
+
+    .cursor {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 25px;
+      height: 25px;
+      margin-left: -12.5px;
+      margin-top: -12.5px;
+      border: 2px solid white;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #fff;
+      z-index: 2;
+    }
+
+    .info {
+      position: fixed;
+      bottom: 20px;
+      width: 100%;
+      font-size: 1.1rem;
+      text-shadow: 0 0 5px #000;
+      background: rgba(0,0,0,0.6);
+      padding: 12px;
+      text-align: center;
+      z-index: 2;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="menu" id="menu">
+    <h1>ColorScan+</h1>
+    <p>Identifie les couleurs en temps réel</p>
+    <button onclick="lancerApp()">Lancer</button>
+  </div>
+
+  <video id="video" autoplay playsinline class="hidden"></video>
+  <canvas id="canvas"></canvas>
+  <div class="cursor hidden" id="cursor"></div>
+  <div class="info hidden" id="info">Chargement...</div>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const info = document.getElementById('info');
+    const cursor = document.getElementById('cursor');
+    const menu = document.getElementById('menu');
+    const ctx = canvas.getContext('2d');
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream;
+      } catch (err) {
+        info.innerText = "Erreur d'accès caméra.";
+        console.error(err);
+      }
+    }
+
+    function getColorName(r, g, b) {
+      const colors = [
+        { name: "Rouge vif", r: 255, g: 0, b: 0 },
+        { name: "Rouge foncé", r: 139, g: 0, b: 0 },
+        { name: "Rose", r: 255, g: 105, b: 180 },
+        { name: "Orange", r: 255, g: 165, b: 0 },
+        { name: "Saumon", r: 250, g: 128, b: 114 },
+        { name: "Jaune", r: 255, g: 255, b: 0 },
+        { name: "Or", r: 255, g: 215, b: 0 },
+        { name: "Vert clair", r: 144, g: 238, b: 144 },
+        { name: "Vert citron", r: 173, g: 255, b: 47 },
+        { name: "Vert foncé", r: 0, g: 100, b: 0 },
+        { name: "Turquoise", r: 64, g: 224, b: 208 },
+        { name: "Bleu clair", r: 173, g: 216, b: 230 },
+        { name: "Bleu", r: 0, g: 0, b: 255 },
+        { name: "Bleu marine", r: 0, g: 0, b: 128 },
+        { name: "Violet", r: 148, g: 0, b: 211 },
+        { name: "Lavande", r: 230, g: 230, b: 250 },
+        { name: "Magenta", r: 255, g: 0, b: 255 },
+        { name: "Beige", r: 245, g: 245, b: 220 },
+        { name: "Gris clair", r: 211, g: 211, b: 211 },
+        { name: "Gris foncé", r: 105, g: 105, b: 105 },
+        { name: "Blanc", r: 255, g: 255, b: 255 },
+        { name: "Noir", r: 0, g: 0, b: 0 }
+      ];
+
+      let closest = colors[0];
+      let minDist = Infinity;
+      for (const color of colors) {
+        const dist = Math.sqrt((r - color.r) ** 2 + (g - color.g) ** 2 + (b - color.b) ** 2);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = color;
+        }
+      }
+      return closest.name;
+    }
+
+    function analyze() {
+      if (video.videoWidth === 0 || video.videoHeight === 0) return;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const x = Math.floor(canvas.width / 2);
+      const y = Math.floor(canvas.height / 2);
+      const pixel = ctx.getImageData(x, y, 1, 1).data;
+      const [r, g, b] = pixel;
+      const name = getColorName(r, g, b);
+      const hex = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()}`;
+      info.innerHTML = `<b>${name}</b><br>${hex} - R:${r} G:${g} B:${b}`;
+    }
+
+    function lancerApp() {
+      menu.classList.add("hidden");
+      video.classList.remove("hidden");
+      cursor.classList.remove("hidden");
+      info.classList.remove("hidden");
+      startCamera();
+      video.addEventListener('playing', () => {
+        setInterval(analyze, 300);
+      });
+    }
+  </script>
+</body>
+</html>
