@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>ColorScan+</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    body, html {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      background: #000;
+      color: white;
+    }
+
+    .menu {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100vh;
+      background: #6d6c6c;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      text-align: center;
+      padding: 20px;
+    }
+    .menu h1 {
+      font-size: 2.2rem;
+      margin-bottom: 1rem;
+      color: #0ff;
+    }
+    .menu p {
+      font-size: 1rem;
+      margin-bottom: 2rem;
+    }
+    .menu button {
+      background: #0ff;
+      color: #000;
+      border: none;
+      padding: 1rem 2rem;
+      font-size: 1.1rem;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .menu button:hover {
+      background: #0cc;
+    }
+
+    .hidden { display: none; }
+    video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 1;
+    }
+    canvas { display: none; }
+
+    .cursor {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 25px;
+      height: 25px;
+      margin-left: -12.5px;
+      margin-top: -12.5px;
+      border: 2px solid white;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #fff;
+      z-index: 2;
+    }
+
+    .info {
+      position: fixed;
+      bottom: 20px;
+      width: 100%;
+      font-size: 1.1rem;
+      text-shadow: 0 0 5px #000;
+      background: rgba(0,0,0,0.6);
+      padding: 12px;
+      text-align: center;
+      z-index: 2;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="menu" id="menu">
+    <h1>ColorScan+</h1>
+    <p>Identifie les couleurs en temps réel</p>
+    <button onclick="lancerApp()">Lancer</button>
+  </div>
+
+  <video id="video" autoplay playsinline class="hidden"></video>
+  <canvas id="canvas"></canvas>
+  <div class="cursor hidden" id="cursor"></div>
+  <div class="info hidden" id="info">Chargement...</div>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const info = document.getElementById('info');
+    const cursor = document.getElementById('cursor');
+    const menu = document.getElementById('menu');
+    const ctx = canvas.getContext('2d');
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream;
+      } catch (err) {
+        info.innerText = "Erreur d'accès caméra.";
+        console.error(err);
+      }
+    }
+
+    function getColorName(r, g, b) {
+      const colors = [
+{ name: "Noir", r: 0, g: 0, b: 0 },
+{ name: "Blanc", r: 255, g: 255, b: 255 },
+{ name: "Rouge", r: 255, g: 0, b: 0 },
+{ name: "Vert", r: 0, g: 128, b: 0 },
+{ name: "Bleu", r: 0, g: 0, b: 255 },
+{ name: "Jaune", r: 255, g: 255, b: 0 },
+{ name: "Cyan", r: 0, g: 255, b: 255 },
+{ name: "Magenta", r: 255, g: 0, b: 255 },
+{ name: "Gris clair", r: 211, g: 211, b: 211 },
+{ name: "Gris foncé", r: 169, g: 169, b: 169 },
+{ name: "Rouge foncé", r: 139, g: 0, b: 0 },
+{ name: "Vert clair", r: 144, g: 238, b: 144 },
+{ name: "Bleu clair", r: 173, g: 216, b: 230 },
+{ name: "Orange", r: 255, g: 165, b: 0 },
+{ name: "Or", r: 255, g: 215, b: 0 },
+{ name: "Rose", r: 255, g: 192, b: 203 },
+{ name: "Turquoise", r: 64, g: 224, b: 208 },
+{ name: "Lavande", r: 230, g: 230, b: 250 },
+{ name: "Saumon", r: 250, g: 128, b: 114 },
+{ name: "Marron", r: 165, g: 42, b: 42 },
+{ name: "Bordeaux", r: 128, g: 0, b: 32 },
+{ name: "Vert olive", r: 128, g: 128, b: 0 },
+{ name: "Bleu marine", r: 0, g: 0, b: 128 },
+{ name: "Beige", r: 245, g: 245, b: 220 },
+{ name: "Kaki", r: 195, g: 176, b: 145 },
+{ name: "Corail", r: 255, g: 127, b: 80 },
+{ name: "Indigo", r: 75, g: 0, b: 130 },
+{ name: "Orchidée", r: 218, g: 112, b: 214 },
+{ name: "Turquoise clair", r: 175, g: 238, b: 238 },
+{ name: "Bleu ciel", r: 135, g: 206, b: 235 },
+{ name: "Vert sapin", r: 1, g: 68, b: 33 },
+{ name: "Rouge vermillon", r: 227, g: 66, b: 52 },
+{ name: "Jaune doré", r: 255, g: 223, b: 0 },
+{ name: "Bleu canard", r: 0, g: 109, b: 119 },
+{ name: "Rose fuchsia", r: 255, g: 0, b: 255 },
+{ name: "Gris acier", r: 70, g: 130, b: 180 },
+{ name: "Vert mousse", r: 138, g: 154, b: 91 },
+{ name: "Rouge brique", r: 178, g: 34, b: 34 },
+{ name: "Blanc cassé", r: 255, g: 250, b: 240 },
+{ name: "Vert chartreuse", r: 127, g: 255, b: 0 },
+{ name: "Bleu électrique", r: 44, g: 117, b: 255 },
+{ name: "Rose pâle", r: 255, g: 182, b: 193 },
+{ name: "Vert émeraude", r: 80, g: 200, b: 120 },
+{ name: "Bleu roi", r: 65, g: 105, b: 225 },
+{ name: "Rouge tomate", r: 255, g: 99, b: 71 },
+{ name: "Jaune citron", r: 255, g: 247, b: 0 },
+{ name: "Sable", r: 194, g: 178, b: 128 },
+{ name: "Gris perle", r: 192, g: 192, b: 192 },
+{ name: "Mauve", r: 224, g: 176, b: 255 },
+{ name: "Bleu glacier", r: 176, g: 224, b: 230 },
+{ name: "Rouge cerise", r: 222, g: 49, b: 99 },
+{ name: "Vert prairie", r: 126, g: 200, b: 80 },
+{ name: "Orange brûlé", r: 204, g: 85, b: 0 },
+{ name: "Jaune moutarde", r: 255, g: 219, b: 88 },
+{ name: "Vert menthe", r: 189, g: 252, b: 201 },
+{ name: "Bleu ardoise", r: 112, g: 128, b: 144 },
+{ name: "Rose bonbon", r: 255, g: 105, b: 180 },
+{ name: "Marron chocolat", r: 123, g: 63, b: 0 },
+{ name: "Blanc neige", r: 255, g: 250, b: 250 },
+{ name: "Vert forêt", r: 34, g: 139, b: 34 },
+{ name: "Bleu pervenche", r: 204, g: 204, b: 255 },
+{ name: "Rouge sang", r: 139, g: 0, b: 0 },
+{ name: "Jaune paille", r: 234, g: 214, b: 89 },
+{ name: "Bleu azur", r: 0, g: 127, b: 255 },
+{ name: "Vert céladon", r: 172, g: 225, b: 175 },
+{ name: "Rose saumon", r: 255, g: 145, b: 164 },
+{ name: "Gris souris", r: 169, g: 169, b: 169 },
+{ name: "Bleu outremer", r: 18, g: 10, b: 143 },
+{ name: "Rouge brique clair", r: 205, g: 92, b: 92 },
+{ name: "Vert jade", r: 0, g: 168, b: 107 },
+{ name: "Jaune soleil", r: 255, g: 223, b: 0 },
+{ name: "Bleu pétrole", r: 0, g: 69, b: 75 },
+{ name: "Rose pastel", r: 255, g: 209, b: 220 },
+{ name: "Marron rouille", r: 183, g: 65, b: 14 },
+{ name: "Blanc ivoire", r: 255, g: 255, b: 240 },
+{ name: "Vert olive clair", r: 107, g: 142, b: 35 },
+{ name: "Bleu denim", r: 21, g: 96, b: 189 },
+{ name: "Rouge feu", r: 178, g: 34, b: 34 },
+{ name: "Jaune paille clair", r: 245, g: 222, b: 179 },
+{ name: "Bleu acier", r: 70, g: 130, b: 180 },
+{ name: "Vert citron", r: 50, g: 205, b: 50 },
+{ name: "Rose framboise", r: 227, g: 11, b: 93 },
+{ name: "Marron taupe", r: 72, g: 60, b: 50 },
+{ name: "Blanc perle", r: 234, g: 224, b: 200 },
+{ name: "Vert sapin foncé", r: 0, g: 51, b: 0 },
+{ name: "Bleu ciel clair", r: 135, g: 206, b: 250 },
+{ name: "Rouge coquelicot", r: 255, g: 56, b: 0 },
+{ name: "Jaune fluo", r: 204, g: 255, b: 0 },
+{ name: "Bleu turquoise", r: 64, g: 224, b: 208 },
+{ name: "Rose vif", r: 255, g: 20, b: 147 },
+{ name: "Marron foncé", r: 101, g: 67, b: 33 },
+{ name: "Blanc crème", r: 255, g: 253, b: 208 },
+{ name: "Vert clair tendre", r: 144, g: 238, b: 144 },
+{ name: "Bleu nuit", r: 25, g: 25, b: 112 },
+{ name: "Rouge carmin", r: 150, g: 0, b: 24 },
+{ name: "Jaune or", r: 255, g: 215, b: 0 },
+{ name: "Bleu lavande", r: 230, g: 230, b: 250 },
+{ name: "Rose poudré", r: 255, g: 192, b: 203 },
+{ name: "Marron clair", r: 210, g: 180, b: 140 },
+{ name: "Blanc neige", r: 255, g: 250, b: 250 },
+{ name: "Vert jade clair", r: 0, g: 168, b: 107 },
+{ name: "Bleu pervenche clair", r: 204, g: 204, b: 255 },
+{ name: "Rouge tomate clair", r: 255, g: 99, b: 71 },
+{ name: "Jaune paille clair", r: 234, g: 214, b: 89 },
+{ name: "Bleu clair", r: 173, g: 216, b: 230 },
+{ name: "Vert menthe clair", r: 189, g: 252, b: 201 },
+{ name: "Rose clair", r: 255, g: 182, b: 193 },
+{ name: "Marron rouille clair", r: 183, g: 65, b: 14 },
+{ name: "Blanc cassé", r: 255, g: 250, b: 240 },
+{ name: "Vert clair", r: 144, g: 238, b: 144 },
+{ name: "Bleu glacier clair", r: 176, g: 224, b: 230 },
+{ name: "Rouge clair", r: 255, g: 0, b: 0 },
+{ name: "Jaune clair", r: 255, g: 255, b: 224 },
+{ name: "Bleu ciel clair", r: 135, g: 206, b: 250 },
+{ name: "Rose pastel clair", r: 255, g: 209, b: 220 },
+{ name: "Vert pâle", r: 152, g: 251, b: 152 },
+{ name: "Marron pâle", r: 210, g: 180, b: 140 },
+{ name: "Blanc perle clair", r: 234, g: 224, b: 200 },
+{ name: "Vert clair tendre", r: 144, g: 238, b: 144 },
+{ name: "Bleu clair tendre", r: 173, g: 216, b: 230 },
+{ name: "Rouge vif", r: 255, g: 0, b: 0 },
+{ name: "Jaune vif", r: 255, g: 255, b: 0 },
+{ name: "Bleu vif", r: 0, g: 191, b: 255 },
+{ name: "Rose vif clair", r: 255, g: 20, b: 147 },
+{ name: "Marron vif", r: 165, g: 42, b: 42 },
+{ name: "Blanc éclatant", r: 255, g: 255, b: 255 },
+{ name: "Vert éclatant", r: 0, g: 255, b: 0 },
+{ name: "Bleu éclatant", r: 0, g: 0, b: 255 },
+{ name: "Rouge éclatant", r: 255, g: 0, b: 0 },
+{ name: "Jaune éclatant", r: 255, g: 255, b: 0 },
+{ name: "Bleu nuit profond", r: 25, g: 25, b: 112 },
+{ name: "Vert forêt sombre", r: 34, g: 139, b: 34 },
+{ name: "Rouge sang sombre", r: 139, g: 0, b: 0 },
+{ name: "Jaune or pâle", r: 255, g: 223, b: 0 },
+{ name: "Bleu azur clair", r: 0, g: 127, b: 255 },
+{ name: "Rose clair pastel", r: 255, g: 192, b: 203 },
+{ name: "Marron clair pâle", r: 210, g: 180, b: 140 },
+{ name: "Blanc neige éclatant", r: 255, g: 250, b: 250 },
+{ name: "Vert jade pâle", r: 0, g: 168, b: 107 },
+{ name: "Bleu pervenche pâle", r: 204, g: 204, b: 255 },
+{ name: "Rouge tomate pâle", r: 255, g: 99, b: 71 },
+{ name: "Jaune paille pâle", r: 234, g: 214, b: 89 },
+{ name: "Bleu clair pâle", r: 173, g: 216, b: 230 },
+{ name: "Vert menthe pâle", r: 189, g: 252, b: 201 },
+{ name: "Rose pâle clair", r: 255, g: 182, b: 193 },
+{ name: "Marron rouille pâle", r: 183, g: 65, b: 14 },
+{ name: "Blanc cassé pâle", r: 255, g: 250, b: 240 },
+{ name: "Vert clair pâle", r: 144, g: 238, b: 144 },
+{ name: "Bleu glacier pâle", r: 176, g: 224, b: 230 },
+{ name: "Rouge pâle", r: 255, g: 0, b: 0 },
+{ name: "Jaune pâle", r: 255, g: 255, b: 224 },
+{ name: "Bleu ciel pâle", r: 135, g: 206, b: 250 },
+{ name: "Rose pastel pâle", r: 255, g: 209, b: 220 },
+{ name: "Vert pâle tendre", r: 152, g: 251, b: 152 },
+{ name: "Marron pâle tendre", r: 210, g: 180, b: 140 },
+{ name: "Blanc perle pâle", r: 234, g: 224, b: 200 },
+{ name: "Vert clair tendre pâle", r: 144, g: 238, b: 144 },
+{ name: "Bleu clair tendre pâle", r: 173, g: 216, b: 230 }
+{ name: "Rouge écarlate", r: 255, g: 36, b: 0 },
+{ name: "Vert printemps", r: 0, g: 255, b: 127 },
+{ name: "Bleu azur profond", r: 0, g: 127, b: 255 },
+{ name: "Jaune sable", r: 244, g: 164, b: 96 },
+{ name: "Rose vif intense", r: 255, g: 20, b: 147 },
+{ name: "Marron brûlé", r: 138, g: 51, b: 36 },
+{ name: "Blanc perle brillant", r: 245, g: 245, b: 220 },
+{ name: "Vert prairie clair", r: 152, g: 251, b: 152 },
+{ name: "Bleu ciel clair tendre", r: 135, g: 206, b: 250 },
+{ name: "Rouge fraise", r: 255, g: 0, b: 79 },
+{ name: "Jaune doré clair", r: 255, g: 223, b: 0 },
+{ name: "Bleu pétrole foncé", r: 0, g: 52, b: 64 },
+{ name: "Rose pâle doux", r: 255, g: 182, b: 193 },
+{ name: "Marron chocolat foncé", r: 92, g: 64, b: 51 },
+{ name: "Blanc cassé chaud", r: 255, g: 248, b: 220 },
+{ name: "Vert mousse clair", r: 173, g: 223, b: 173 },
+{ name: "Bleu denim foncé", r: 21, g: 96, b: 189 },
+{ name: "Rouge cerise foncé", r: 199, g: 44, b: 72 },
+{ name: "Jaune citron pâle", r: 255, g: 250, b: 205 },
+{ name: "Bleu électrique clair", r: 44, g: 117, b: 255 },
+{ name: "Rose bonbon clair", r: 255, g: 105, b: 180 },
+{ name: "Marron clair chaud", r: 210, g: 180, b: 140 },
+{ name: "Blanc neige pur", r: 255, g: 250, b: 250 },
+{ name: "Vert forêt sombre", r: 34, g: 139, b: 34 },
+{ name: "Bleu pervenche foncé", r: 138, g: 43, b: 226 },
+{ name: "Rouge brique foncé", r: 139, g: 0, b: 0 },
+{ name: "Jaune paille clair", r: 245, g: 222, b: 179 },
+{ name: "Bleu clair pastel", r: 176, g: 224, b: 230 },
+{ name: "Rose pastel doux", r: 255, g: 192, b: 203 },
+{ name: "Marron terre", r: 139, g: 69, b: 19 },
+{ name: "Blanc ivoire chaud", r: 255, g: 255, b: 240 },
+{ name: "Vert clair menthe", r: 189, g: 252, b: 201 },
+{ name: "Bleu ardoise clair", r: 112, g: 128, b: 144 },
+{ name: "Rouge tomate vif", r: 255, g: 99, b: 71 },
+{ name: "Jaune or profond", r: 255, g: 215, b: 0 },
+{ name: "Bleu turquoise clair", r: 64, g: 224, b: 208 },
+{ name: "Rose vif intense", r: 255, g: 0, b: 255 },
+{ name: "Marron clair beige", r: 222, g: 184, b: 135 },
+{ name: "Blanc neige éclatant", r: 255, g: 250, b: 250 },
+{ name: "Vert sapin foncé", r: 0, g: 51, b: 0 },
+{ name: "Bleu roi vif", r: 65, g: 105, b: 225 },
+{ name: "Rouge vif intense", r: 255, g: 0, b: 0 },
+{ name: "Jaune clair vif", r: 255, g: 255, b: 224 },
+{ name: "Bleu ciel vif", r: 135, g: 206, b: 250 },
+{ name: "Rose pastel vif", r: 255, g: 209, b: 220 },
+{ name: "Vert clair vif", r: 152, g: 251, b: 152 },
+{ name: "Marron pâle chaud", r: 210, g: 180, b: 140 },
+{ name: "Blanc perle chaud", r: 234, g: 224, b: 200 },
+{ name: "Vert tendre clair", r: 144, g: 238, b: 144 },
+{ name: "Bleu tendre clair", r: 173, g: 216, b: 230 },
+{ name: "Rouge vif chaud", r: 255, g: 0, b: 0 },
+{ name: "Jaune vif chaud", r: 255, g: 255, b: 0 },
+{ name: "Bleu vif chaud", r: 0, g: 191, b: 255 },
+{ name: "Rose vif chaud", r: 255, g: 20, b: 147 },
+{ name: "Marron vif chaud", r: 165, g: 42, b: 42 },
+{ name: "Blanc éclatant chaud", r: 255, g: 255, b: 255 },
+{ name: "Vert éclatant chaud", r: 0, g: 255, b: 0 },
+{ name: "Bleu éclatant chaud", r: 0, g: 0, b: 255 },
+{ name: "Rouge éclatant chaud", r: 255, g: 0, b: 0 },
+{ name: "Jaune éclatant chaud", r: 255, g: 255, b: 0 },
+{ name: "Bleu nuit profond sombre", r: 25, g: 25, b: 112 },
+{ name: "Vert forêt sombre profond", r: 34, g: 139, b: 34 },
+{ name: "Rouge sang sombre profond", r: 139, g: 0, b: 0 },
+{ name: "Jaune or pâle clair", r: 255, g: 223, b: 0 },
+{ name: "Bleu azur clair vif", r: 0, g: 127, b: 255 },
+{ name: "Rose clair pastel vif", r: 255, g: 192, b: 203 },
+{ name: "Marron clair pâle chaud", r: 210, g: 180, b: 140 },
+{ name: "Blanc neige éclatant chaud", r: 255, g: 250, b: 250 },
+{ name: "Vert jade pâle vif", r: 0, g: 168, b: 107 },
+{ name: "Bleu pervenche pâle vif", r: 204, g: 204, b: 255 },
+{ name: "Rouge tomate pâle vif", r: 255, g: 99, b: 71 },
+{ name: "Jaune paille pâle vif", r: 234, g: 214, b: 89 },
+{ name: "Bleu clair pâle vif", r: 173, g: 216, b: 230 },
+{ name: "Vert menthe pâle vif", r: 189, g: 252, b: 201 },
+{ name: "Rose pâle clair vif", r: 255, g: 182, b: 193 },
+{ name: "Marron rouille pâle vif", r: 183, g: 65, b: 14 },
+{ name: "Blanc cassé pâle vif", r: 255, g: 250, b: 240 },
+{ name: "Vert clair pâle vif", r: 144, g: 238, b: 144 },
+{ name: "Bleu glacier pâle vif", r: 176, g: 224, b: 230 },
+{ name: "Rouge pâle vif", r: 255, g: 0, b: 0 },
+{ name: "Jaune pâle vif", r: 255, g: 255, b: 224 },
+{ name: "Bleu ciel pâle vif", r: 135, g: 206, b: 250 },
+{ name: "Rose pastel pâle vif", r: 255, g: 209, b: 220 },
+{ name: "Vert pâle tendre vif", r: 152, g: 251, b: 152 },
+{ name: "Marron pâle tendre vif", r: 210, g: 180, b: 140 },
+{ name: "Blanc perle pâle vif", r: 234, g: 224, b: 200 },
+{ name: "Vert clair tendre pâle vif", r: 144, g: 238, b: 144 },
+{ name: "Bleu clair tendre pâle vif", r: 173, g: 216, b: 230 }
+      ];
+
+      let closest = colors[0];
+      let minDist = Infinity;
+      for (const color of colors) {
+        const dist = Math.sqrt((r - color.r) ** 2 + (g - color.g) ** 2 + (b - color.b) ** 2);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = color;
+        }
+      }
+      return closest.name;
+    }
+
+    function analyze() {
+      if (video.videoWidth === 0 || video.videoHeight === 0) return;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const x = Math.floor(canvas.width / 2);
+      const y = Math.floor(canvas.height / 2);
+      const pixel = ctx.getImageData(x, y, 1, 1).data;
+      const [r, g, b] = pixel;
+      const name = getColorName(r, g, b);
+      const hex = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()}`;
+      info.innerHTML = `<b>${name}</b><br>${hex} - R:${r} G:${g} B:${b}`;
+    }
+
+    function lancerApp() {
+      menu.classList.add("hidden");
+      video.classList.remove("hidden");
+      cursor.classList.remove("hidden");
+      info.classList.remove("hidden");
+      startCamera();
+      video.addEventListener('playing', () => {
+        setInterval(analyze, 300);
+      });
+    }
+  </script>
+</body>
+</html>
